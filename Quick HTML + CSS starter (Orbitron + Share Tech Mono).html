@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DaaS // Orbitron + Share Tech</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --accent: #00f0ff;
+      --text: #e0e6ed;
+      --bug: #ff4d6d;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      padding: 2rem;
+    }
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 400;
+      font-size: 0.9rem;
+      opacity: 0.7;
+      margin-bottom: 2rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th {
+      font-family: 'Orbitron', sans-serif;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--accent);
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+    td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #1a2332;
+    }
+    .bugfix {
+      color: var(--bug);
+      font-weight: bold;
+    }
+    .code {
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Data as a Service</h1>
+  <div class="subtitle">Matrix 14 // Prefix 2 // Suffix 3 // BugFix 3,6,9</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Code</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- paste the 14 rows here or generate dynamically -->
+      <tr><td>1</td><td class="code">GJ-23258-SZ7</td><td>OK</td></tr>
+      <tr><td>2</td><td class="code">KS-14917-002</td><td>OK</td></tr>
+      <tr><td>3</td><td class="code">JU-59951-LJJ</td><td class="bugfix">BUGFIX</td></tr>
+      <!-- ... continue for all 14 -->
+    </tbody>
+  </table>
+</body>
+</html>
