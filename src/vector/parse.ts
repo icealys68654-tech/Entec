@@ -94,6 +94,7 @@ export function parseSnapshot(text: string, explicitAnchor?: number): {
     }});
   }
 
-  const anchorEpochMs = explicitAnchor ?? Math.max(0, ...parsed.map(item => item.epoch)) || Date.now();
+  const newestEpoch = parsed.reduce((max, item) => Math.max(max, item.epoch), 0);
+  const anchorEpochMs = explicitAnchor ?? (newestEpoch || Date.now());
   return { entries: parsed.map(item => item.entry), volumeSerial, anchorEpochMs, skippedCount };
 }
