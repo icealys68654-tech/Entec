@@ -20,6 +20,18 @@ export interface TagEngineStoredSnapshot {
   anchorIso: string;
 }
 
+export interface TagEngineStoredComparison {
+  id: string;
+  volumeId: string;
+  baselineId: string;
+  targetId: string;
+  createdAt: string;
+  minSeverity: number;
+  sharedAnchorIso: string;
+  summary: { added: number; modified: number; deleted: number; alertsEmitted: number };
+  alerts?: TagEngineAlert[];
+}
+
 export interface TagEngineParseMetadata {
   processedCount: number;
   volumeSerial: string;
@@ -172,6 +184,44 @@ export class TagEngineClient {
     const snapshot = (payload as { snapshot?: unknown })?.snapshot;
     if (!snapshot || typeof snapshot !== "object") throw new Error("TagEngine returned invalid snapshot metadata");
     return snapshot as TagEngineStoredSnapshot;
+  }
+
+  async compareSnapshots(input: { baselineId: string; targetId: string; minSeverity?: number }): Promise<TagEngineStoredComparison> {
+    if (!/^[0-9a-f-]{36}$/i.test(input.baselineId) || !/^[0-9a-f-]{36}$/i.test(input.targetId)) {
+      throw new Error("baselineId and targetId must be UUIDs");
+    }
+    if (input.baselineId === input.targetId) throw new Error("baselineId and targetId must be different");
+    const minSeverity = input.minSeverity ?? 1;
+    if (!Number.isFinite(minSeverity) || minSeverity < 0 || minSeverity > 10) {
+      throw new Error("minSeverity must be a number between 0 and 10");
+    }
+    const payload = await this.requestJson("/api/snapshot-comparisons", {
+      method: "POST", body: JSON.stringify({ ...input, minSeverity })
+    });
+    const comparison = (payload as { comparison?: unknown })?.comparison;
+    if (!comparison || typeof comparison !== "object" || typeof (comparison as TagEngineStoredComparison).id !== "string") {
+      throw new Error("TagEngine returned invalid comparison");
+    }
+    return comparison as TagEngineStoredComparison;
+  }
+
+  async listComparisons(input: { volumeId?: string; limit?: number } = {}): Promise<TagEngineStoredComparison[]> {
+    const limit = input.limit ?? 100;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new Error("limit must be an integer from 1 to 500");
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (input.volumeId) query.set("volumeId", input.volumeId);
+    const payload = await this.requestJson("/api/snapshot-comparisons?" + query.toString());
+    const comparisons = (payload as { comparisons?: unknown })?.comparisons;
+    if (!Array.isArray(comparisons)) throw new Error("TagEngine returned invalid comparison list");
+    return comparisons as TagEngineStoredComparison[];
+  }
+
+  async getComparison(id: string): Promise<TagEngineStoredComparison> {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("comparison id must be a UUID");
+    const payload = await this.requestJson("/api/snapshot-comparisons/" + encodeURIComponent(id));
+    const comparison = (payload as { comparison?: unknown })?.comparison;
+    if (!comparison || typeof comparison !== "object") throw new Error("TagEngine returned invalid comparison");
+    return comparison as TagEngineStoredComparison;
   }
 
   async analyze(input: {
