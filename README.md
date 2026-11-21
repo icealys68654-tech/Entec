@@ -1,58 +1,77 @@
 # Entec Umbrella
 
-Entec Umbrella is the orchestration and abstraction layer for the Entec platform. It provides a stable pipeline contract around snapshot ingestion, normalization, vector parsing, comparison, and downstream storage/security services.
+Entec Umbrella is the orchestration and abstraction layer for the Entec platform. It provides stable contracts for snapshot ingestion, normalization, vector parsing, comparison, and downstream storage/security services.
 
-## Relationship to existing repositories
+## Repository responsibilities
 
-- **Entec** is the platform umbrella and home for shared contracts and orchestration.
-- **TagEngine** remains the specialized snapshot manifest parser and SQLite-backed snapshot diff engine. Its existing 12-dimensional feature model informs the Vector Parse Phase.
-- This repository contains a dependency-light reference pipeline. It establishes an independently testable integration boundary without copying or silently modifying TagEngine.
+- **Entec** owns shared contracts, orchestration, and integrations.
+- **TagEngine** owns the specialized Windows `dir /s` parser, 12D JSONL vector generation, and SQLite-backed disk diff.
+- The Entec TagEngine adapter calls TagEngine's existing HTTP API. It does not fork or duplicate TagEngine's parser/comparator implementation.
 
 ## Pipeline
 
-`INGEST → ABSTRACT → VECTOR_PARSE → COMPARE → PUBLISH`
+`INGEST → ABSTRACT → TAGENGINE VECTOR_PARSE → SQLITE DIFF → PUBLISH`
 
-1. **Ingest** — accept Windows `dir /s` text snapshots from a trusted caller.
-2. **Abstract** — normalize entries into a platform-neutral manifest record.
-3. **Vector Parse** — derive the versioned 12D feature vector and stable SHA-256 path key.
-4. **Compare** — identify added, removed, and changed paths across snapshots.
-5. **Publish** — return a typed pipeline result to an API, storage adapter, or IDS subsystem.
-
-The vector dimensions, in order, are: executable, archive/image, script/config, recycle-bin path, system/program path, hidden/dot path, reparse point, directory, normalized path depth, normalized log size, recency, and timestamp anomaly.
+The 12 vector dimensions are: executable, archive/image, script/config, recycle-bin path, system/program path, hidden/dot path, reparse point, directory, normalized path depth, normalized log size, recency, and timestamp anomaly.
 
 ## Quick start
 
 ```sh
 npm install
-npm run build
 npm test
 ```
 
-Use the library:
+## Use the local reference pipeline
 
 ```ts
-import { runSnapshotPipeline } from "./dist/index";
+import { runSnapshotPipeline } from "@entec/umbrella";
 
 const result = await runSnapshotPipeline({
-  baselineText: baselineSnapshot,
-  targetText: targetSnapshot
+  baselineText,
+  targetText
 });
 console.log(result.summary);
 ```
 
-## API shape
+## Call the existing TagEngine service
 
-The core pipeline is transport-agnostic. Implement `SnapshotParser`, `ManifestSink`, or `AlertPublisher` from `src/abstract/ports.ts` to connect file uploads, databases, message queues, or the existing TagEngine service. No credentials or secrets belong in source control.
+TagEngine exposes `POST /api/analyze`. Entec provides a typed HTTP adapter for that exact contract:
 
-## Safety and operational notes
+```ts
+import { TagEngineClient } from "@entec/umbrella";
 
-- Parsing is passive: it does not delete, quarantine, block, or modify scanned files.
-- Treat snapshot content as untrusted input; apply upload limits and authentication at the API boundary.
-- A vector is a deterministic feature representation, not a malware verdict. Review alerts before taking action.
-- Keep vector schema changes versioned; changing dimension order requires a schema-version increment and migration plan.
+const tagEngine = new TagEngineClient({
+  baseUrl: process.env.TAGENGINE_URL ?? "http://127.0.0.1:3000"
+});
 
-## Existing TagEngine
+const result = await tagEngine.analyze({
+  baselineText,
+  targetText,
+  minSeverity: 2
+});
 
-Repository: https://github.com/icealys68654-tech/TagEngine
+if (result.mode === "SNAPSHOT_DIFF") {
+  console.log(result.summary, result.alerts);
+} else {
+  console.log(result.recordsReturned, result.records);
+}
+```
 
-TagEngine currently provides the specialized Windows snapshot parser, JSONL output, and disk-backed SQLite comparison. This umbrella layer establishes reusable contracts and a separately testable integration boundary.
+The adapter supports an injected `fetch` implementation for tests, validates inputs, enforces the service's 50MB request limit, applies a configurable timeout, and surfaces non-2xx responses as `TagEngineHttpError`.
+
+## Deploying the integration safely
+
+1. Deploy TagEngine separately using its own package and SQLite dependency.
+2. Set `TAGENGINE_URL` to a private service address reachable by Entec.
+3. Keep TagEngine behind a private network, authenticated reverse proxy, or API gateway. The current TagEngine `/api/analyze` endpoint does not implement authentication itself; do not expose it directly to the public internet.
+4. Apply request rate limits and payload limits at the gateway.
+5. Treat all generated severity scores as review signals, not malware verdicts. The pipeline is passive and does not block, quarantine, or delete files.
+
+## Existing repositories
+
+- Entec: https://github.com/icealys68654-tech/Entec
+- TagEngine: https://github.com/icealys68654-tech/TagEngine
+
+## Development
+
+`npm run build` compiles TypeScript. `npm test` runs parser and TagEngine adapter contract tests. The tests mock HTTP responses and do not require a running TagEngine instance.
