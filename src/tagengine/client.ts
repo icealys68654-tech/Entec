@@ -1,6 +1,8 @@
 export interface TagEngineClientOptions {
   /** Base URL of the privately deployed TagEngine HTTP service, e.g. http://127.0.0.1:3000 */
   baseUrl: string;
+  /** Bearer token for TagEngine's protected API. Keep server-side; never expose in browser code. */
+  apiToken?: string;
   /** Request deadline in milliseconds. Defaults to 30 seconds. */
   timeoutMs?: number;
   /** Injectable fetch implementation for tests and custom runtimes. */
@@ -74,6 +76,7 @@ export class TagEngineHttpError extends Error {
 export class TagEngineClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
+  private readonly apiToken?: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: TagEngineClientOptions) {
@@ -95,6 +98,10 @@ export class TagEngineClient {
 
     this.baseUrl = parsed.toString().replace(/\/$/, "");
     this.timeoutMs = options.timeoutMs ?? 30_000;
+    if (options.apiToken !== undefined && !options.apiToken.trim()) {
+      throw new Error("apiToken must be a non-empty string when provided");
+    }
+    this.apiToken = options.apiToken;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -125,7 +132,11 @@ export class TagEngineClient {
     try {
       const response = await this.fetchImpl(`${this.baseUrl}/api/analyze`, {
         method: "POST",
-        headers: { "content-type": "application/json", "accept": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "accept": "application/json",
+          ...(this.apiToken ? { "authorization": "Bearer " + this.apiToken } : {})
+        },
         body,
         signal: controller.signal
       });

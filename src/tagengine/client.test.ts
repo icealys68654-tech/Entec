@@ -14,11 +14,14 @@ const singleResult = {
 test("posts the existing TagEngine analyze contract and returns typed result", async () => {
   let requestedUrl = "";
   let requestedBody: Record<string, unknown> = {};
+  let requestedHeaders: Record<string, string> = {};
   const client = new TagEngineClient({
     baseUrl: "http://localhost:3000/",
+    apiToken: "test-secret",
     fetchImpl: async (input, init) => {
       requestedUrl = String(input);
       requestedBody = JSON.parse(String(init?.body));
+      requestedHeaders = init?.headers as Record<string, string>;
       return new Response(JSON.stringify({
         ...singleResult,
         baseline: { processedCount: 1, volumeSerial: "ABCD-1234", anchorIso: singleResult.anchorIso }
@@ -29,6 +32,7 @@ test("posts the existing TagEngine analyze contract and returns typed result", a
   const result = await client.analyze({ baselineText: "snapshot", minSeverity: 2.5 });
   assert.equal(requestedUrl, "http://localhost:3000/api/analyze");
   assert.deepEqual(requestedBody, { baselineText: "snapshot", targetText: "", minSeverity: 2.5 });
+  assert.equal(requestedHeaders.authorization, "Bearer test-secret");
   assert.equal(result.mode, "SINGLE_PARSE");
 });
 
@@ -48,4 +52,9 @@ test("validates base URL and severity before making a request", async () => {
   const client = new TagEngineClient({ baseUrl: "http://localhost:3000" });
   await assert.rejects(client.analyze({ baselineText: "snapshot", minSeverity: 11 }), /between 0 and 10/);
   await assert.rejects(client.analyze({ baselineText: "  " }), /baselineText is required/);
+});
+
+
+test("rejects an explicitly blank API token", () => {
+  assert.throws(() => new TagEngineClient({ baseUrl: "http://localhost:3000", apiToken: " " }), /apiToken must be a non-empty string/);
 });

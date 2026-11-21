@@ -41,7 +41,8 @@ TagEngine exposes `POST /api/analyze`. Entec provides a typed HTTP adapter for t
 import { TagEngineClient } from "@entec/umbrella";
 
 const tagEngine = new TagEngineClient({
-  baseUrl: process.env.TAGENGINE_URL ?? "http://127.0.0.1:3000"
+  baseUrl: process.env.TAGENGINE_URL ?? "http://127.0.0.1:3000",
+  apiToken: process.env.TAGENGINE_API_TOKEN
 });
 
 const result = await tagEngine.analyze({
@@ -57,13 +58,13 @@ if (result.mode === "SNAPSHOT_DIFF") {
 }
 ```
 
-The adapter supports an injected `fetch` implementation for tests, validates inputs, enforces the service's 50MB request limit, applies a configurable timeout, and surfaces non-2xx responses as `TagEngineHttpError`.
+The adapter supports an injected `fetch` implementation for tests, optional server-side bearer authentication, validates inputs, enforces the service's 50MB request limit, applies a configurable timeout, and surfaces non-2xx responses as `TagEngineHttpError`.
 
 ## Deploying the integration safely
 
 1. Deploy TagEngine separately using its own package and SQLite dependency.
 2. Set `TAGENGINE_URL` to a private service address reachable by Entec.
-3. Keep TagEngine behind a private network, authenticated reverse proxy, or API gateway. The current TagEngine `/api/analyze` endpoint does not implement authentication itself; do not expose it directly to the public internet.
+3. Configure `ENTEC_API_TOKEN` in TagEngine's server environment and the matching `TAGENGINE_API_TOKEN` in the Entec server environment. Entec sends it as a bearer token. Keep both values in a secret manager; never embed them in browser code.
 4. Apply request rate limits and payload limits at the gateway.
 5. Treat all generated severity scores as review signals, not malware verdicts. The pipeline is passive and does not block, quarantine, or delete files.
 
