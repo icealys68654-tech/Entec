@@ -129,3 +129,35 @@ test("validates historical comparison IDs and severity locally", async () => {
   await assert.rejects(client.compareSnapshots({ baselineId: id, targetId: id }), /different/);
   await assert.rejects(client.compareSnapshots({ baselineId: id, targetId: "123e4567-e89b-12d3-a456-426614174001", minSeverity: 11 }), /between 0 and 10/);
 });
+
+
+test("runs retention in dry-run mode by default and supports explicit execution", async () => {
+  const calls: Array<{ url: string; body: Record<string, unknown>; authorization: string }> = [];
+  const retention = {
+    dryRun: true, cutoff: "2026-08-01T00:00:00.000Z",
+    candidates: { snapshots: 4, comparisons: 2 }, deleted: { snapshots: 0, comparisons: 0 },
+    bytesReclaimable: 4096, remainingUsage: { files: 12, bytes: 8192 }
+  };
+  const client = new TagEngineClient({
+    baseUrl: "https://tagengine.internal", apiToken: "secret",
+    fetchImpl: async (input, init) => {
+      const body = JSON.parse(String(init?.body));
+      calls.push({ url: String(input), body, authorization: (init?.headers as Record<string, string>).authorization });
+      return new Response(JSON.stringify({ retention: { ...retention, dryRun: body.dryRun,
+        deleted: body.dryRun ? { snapshots: 0, comparisons: 0 } : { snapshots: 4, comparisons: 2 } } }), { status: 200 });
+    }
+  });
+  const preview = await client.runRetention({ retentionDays: 90, keepLatestPerVolume: 3 });
+  const applied = await client.runRetention({ retentionDays: 90, keepLatestPerVolume: 3, dryRun: false });
+  assert.equal(preview.dryRun, true);
+  assert.equal(calls[0].body.dryRun, true);
+  assert.equal(applied.dryRun, false);
+  assert.equal(applied.deleted.snapshots, 4);
+  assert.ok(calls.every(call => call.url.endsWith("/api/maintenance/retention") && call.authorization === "Bearer secret"));
+});
+
+test("validates retention policy bounds before making a request", async () => {
+  const client = new TagEngineClient({ baseUrl: "http://localhost:3000" });
+  await assert.rejects(client.runRetention({ retentionDays: 0 }), /1 to 3650/);
+  await assert.rejects(client.runRetention({ retentionDays: 30, keepLatestPerVolume: 1001 }), /0 to 1000/);
+});
