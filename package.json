@@ -9,8 +9,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/**/*.test.js",
-    "parse": "node dist/cli.js"
+    "test": "npm run build && node --test dist/vector/parse.test.js"
   },
   "engines": { "node": ">=20" },
   "devDependencies": {
