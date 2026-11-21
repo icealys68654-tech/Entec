@@ -1,6 +1,7 @@
 import * as http from "node:http";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import { TagEngineClient } from "../tagengine/client";
 
 const port = Number(process.env.ENTEC_DASHBOARD_PORT ?? 4173);
@@ -21,7 +22,7 @@ function authorized(req: http.IncomingMessage): boolean {
   if (!token) return loopback;
   const supplied = /^Bearer (.+)$/i.exec(req.headers.authorization || "")?.[1] || "";
   const a = Buffer.from(supplied), b = Buffer.from(token);
-  return a.length === b.length && require("node:crypto").timingSafeEqual(a, b);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 function send(res: http.ServerResponse, status: number, data: unknown): void {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -38,7 +39,6 @@ function body(req: http.IncomingMessage): Promise<Record<string, unknown>> {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", "http://localhost");
-  if (!authorized(req)) { send(res, 401, { error: "Dashboard access token required" }); return; }
   if (req.method === "GET" && !url.pathname.startsWith("/api/")) {
     const name = url.pathname === "/" ? "index.html" : path.basename(url.pathname);
     const file = path.join(publicDir, name);
@@ -46,6 +46,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { "content-type": mime[path.extname(file)] || "application/octet-stream", "cache-control": "no-store" });
     fs.createReadStream(file).pipe(res); return;
   }
+  if (!authorized(req)) { send(res, 401, { error: "Dashboard access token required" }); return; }
   try {
     if (req.method === "GET" && url.pathname === "/api/snapshots") {
       send(res, 200, { snapshots: await client.listSnapshots({ volumeId: url.searchParams.get("volumeId") || undefined, limit: Number(url.searchParams.get("limit") || 500) }) }); return;
