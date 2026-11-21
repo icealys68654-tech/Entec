@@ -9,9 +9,12 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/vector/parse.test.js dist/tagengine/client.test.js"
+    "test": "npm run build && node --test dist/vector/parse.test.js dist/tagengine/client.test.js",
+    "dashboard": "node dist/operations/server.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "@types/node": "^22.9.0",
     "typescript": "^5.6.3"
