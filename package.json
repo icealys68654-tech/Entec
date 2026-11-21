@@ -1,15 +1,15 @@
 {
   "name": "@entec/umbrella",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Entec umbrella orchestration and abstract snapshot pipeline with a deterministic vector-parse phase.",
+  "description": "Entec umbrella orchestration, abstract contracts, vector parsing, and TagEngine integration.",
   "license": "GPL-3.0-only",
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/vector/parse.test.js"
+    "test": "npm run build && node --test dist/vector/parse.test.js dist/tagengine/client.test.js"
   },
   "engines": { "node": ">=20" },
   "devDependencies": {
