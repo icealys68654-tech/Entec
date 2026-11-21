@@ -32,6 +32,15 @@ export interface TagEngineStoredComparison {
   alerts?: TagEngineAlert[];
 }
 
+export interface TagEngineRetentionResult {
+  dryRun: boolean;
+  cutoff: string;
+  candidates: { snapshots: number; comparisons: number };
+  deleted: { snapshots: number; comparisons: number };
+  bytesReclaimable: number;
+  remainingUsage: { files: number; bytes: number };
+}
+
 export interface TagEngineParseMetadata {
   processedCount: number;
   volumeSerial: string;
@@ -222,6 +231,26 @@ export class TagEngineClient {
     const comparison = (payload as { comparison?: unknown })?.comparison;
     if (!comparison || typeof comparison !== "object") throw new Error("TagEngine returned invalid comparison");
     return comparison as TagEngineStoredComparison;
+  }
+
+  async runRetention(input: { retentionDays: number; keepLatestPerVolume?: number; dryRun?: boolean }): Promise<TagEngineRetentionResult> {
+    if (!Number.isInteger(input.retentionDays) || input.retentionDays < 1 || input.retentionDays > 3650) {
+      throw new Error("retentionDays must be an integer from 1 to 3650");
+    }
+    if (input.keepLatestPerVolume !== undefined &&
+        (!Number.isInteger(input.keepLatestPerVolume) || input.keepLatestPerVolume < 0 || input.keepLatestPerVolume > 1000)) {
+      throw new Error("keepLatestPerVolume must be an integer from 0 to 1000");
+    }
+    if (input.dryRun !== undefined && typeof input.dryRun !== "boolean") throw new Error("dryRun must be boolean");
+    const payload = await this.requestJson("/api/maintenance/retention", {
+      method: "POST",
+      body: JSON.stringify({ ...input, dryRun: input.dryRun ?? true })
+    });
+    const retention = (payload as { retention?: unknown })?.retention;
+    if (!retention || typeof retention !== "object" || typeof (retention as TagEngineRetentionResult).dryRun !== "boolean") {
+      throw new Error("TagEngine returned invalid retention result");
+    }
+    return retention as TagEngineRetentionResult;
   }
 
   async analyze(input: {

@@ -124,3 +124,30 @@ rebuilding vectors, and persists comparison metadata plus alert JSONL files.
 The adapter returns the service's capped alert payload (up to 2,000 records);
 use the summary counts for total change volume. Comparison endpoints require
 the same server-side bearer token as snapshot storage.
+
+
+## Snapshot retention operations
+
+The Entec adapter exposes `runRetention()` for TagEngine's authenticated maintenance
+endpoint. It defaults to a non-destructive preview:
+
+```ts
+const preview = await tagEngine.runRetention({
+  retentionDays: 90,
+  keepLatestPerVolume: 3
+});
+
+// Review candidates and estimated bytes before authorizing deletion.
+console.log(preview.candidates, preview.bytesReclaimable);
+
+// Explicitly execute only after reviewing the preview.
+const result = await tagEngine.runRetention({
+  retentionDays: 90,
+  keepLatestPerVolume: 3,
+  dryRun: false
+});
+```
+
+The retention call is intended for trusted server-side operations. Keep the TagEngine
+bearer token out of browser code. TagEngine retains snapshots referenced by comparisons
+that remain in retention, and reports tracked snapshot/comparison artifact usage.
