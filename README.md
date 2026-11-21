@@ -94,9 +94,7 @@ const snapshot = await tagEngine.getSnapshot(saved.id);
 ```
 
 Configure TagEngine's `ENTEC_SNAPSHOT_DIR` on a durable volume and back it
-up. The current storage release retains source snapshots and vector files;
-it does not yet implement automatic retention, deletion, or historical
-snapshot-to-snapshot comparison endpoints.
+up. The storage service supports historical comparisons and operator-triggered retention. See the lifecycle section below.
 
 
 ## Historical snapshot comparisons
@@ -151,3 +149,20 @@ const result = await tagEngine.runRetention({
 The retention call is intended for trusted server-side operations. Keep the TagEngine
 bearer token out of browser code. TagEngine retains snapshots referenced by comparisons
 that remain in retention, and reports tracked snapshot/comparison artifact usage.
+
+## Operations dashboard
+
+Entec includes a small server-rendered-by-static-assets operations console. It reads stored snapshot inventory, comparison history and alert details, and runs a retention preview. It uses the TagEngine API through the server-side `TagEngineClient`; the TagEngine bearer token is never sent to the browser.
+
+Configure the service environment and start it after building:
+
+```sh
+TAGENGINE_URL=http://127.0.0.1:3000 \
+TAGENGINE_API_TOKEN=your-server-side-tagengine-token \
+npm run build
+npm run dashboard
+```
+
+The dashboard listens on `127.0.0.1:4173` by default. For remote binding, set `ENTEC_DASHBOARD_HOST` and a separate `ENTEC_DASHBOARD_TOKEN`; browser API requests require that token. Put remote deployments behind TLS and an authenticated reverse proxy. Keep both tokens in a secret manager.
+
+Retention preview is non-destructive. Deletion requires entering `DELETE EXPIRED DATA` and confirming the browser prompt; the server independently checks the confirmation phrase. The dashboard displays the latest 500 snapshots/comparisons and the service-capped alert details. It does not expose raw snapshot contents or filesystem paths.
