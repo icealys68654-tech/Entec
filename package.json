@@ -1,0 +1,19 @@
+{
+  "name": "@entec/umbrella",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Entec umbrella orchestration and abstract snapshot pipeline with a deterministic vector-parse phase.",
+  "license": "GPL-3.0-only",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/vector/parse.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3"
+  }
+}
