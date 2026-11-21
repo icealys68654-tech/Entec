@@ -92,3 +92,40 @@ test("creates, lists, and retrieves persisted snapshots with bearer auth", async
   assert.ok(calls[1].url.includes("volumeId=volume-a"));
   assert.equal(calls.every(call => call.authorization === "Bearer secret"), true);
 });
+
+
+test("creates, lists, and retrieves historical comparisons with bearer auth", async () => {
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  const stored = {
+    id, volumeId: "volume-a", baselineId: id, targetId: "123e4567-e89b-12d3-a456-426614174001",
+    createdAt: "2026-11-21T12:00:00.000Z", minSeverity: 1, sharedAnchorIso: "2026-11-20T13:00:00.000Z",
+    summary: { added: 1, modified: 2, deleted: 0, alertsEmitted: 3 }, alerts: []
+  };
+  const calls: Array<{ url: string; method: string; authorization: string }> = [];
+  const client = new TagEngineClient({
+    baseUrl: "https://tagengine.internal", apiToken: "secret",
+    fetchImpl: async (input, init) => {
+      calls.push({ url: String(input), method: String(init?.method || "GET"),
+        authorization: (init?.headers as Record<string, string>).authorization });
+      if (String(input).includes("/api/snapshot-comparisons?")) return new Response(JSON.stringify({ comparisons: [stored] }), { status: 200 });
+      return new Response(JSON.stringify({ comparison: stored }), { status: String(init?.method) === "POST" ? 201 : 200 });
+    }
+  });
+  const created = await client.compareSnapshots({ baselineId: id, targetId: stored.targetId, minSeverity: 2 });
+  const listed = await client.listComparisons({ volumeId: "volume-a" });
+  const fetched = await client.getComparison(id);
+  assert.equal(created.id, id);
+  assert.equal(listed[0].summary.alertsEmitted, 3);
+  assert.equal(fetched.id, id);
+  assert.equal(calls[0].method, "POST");
+  assert.ok(calls[1].url.includes("volumeId=volume-a"));
+  assert.equal(calls.every(call => call.authorization === "Bearer secret"), true);
+});
+
+test("validates historical comparison IDs and severity locally", async () => {
+  const client = new TagEngineClient({ baseUrl: "http://localhost:3000" });
+  await assert.rejects(client.compareSnapshots({ baselineId: "bad", targetId: "also-bad" }), /UUIDs/);
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  await assert.rejects(client.compareSnapshots({ baselineId: id, targetId: id }), /different/);
+  await assert.rejects(client.compareSnapshots({ baselineId: id, targetId: "123e4567-e89b-12d3-a456-426614174001", minSeverity: 11 }), /between 0 and 10/);
+});

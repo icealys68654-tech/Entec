@@ -97,3 +97,30 @@ Configure TagEngine's `ENTEC_SNAPSHOT_DIR` on a durable volume and back it
 up. The current storage release retains source snapshots and vector files;
 it does not yet implement automatic retention, deletion, or historical
 snapshot-to-snapshot comparison endpoints.
+
+
+## Historical snapshot comparisons
+
+The TagEngine adapter can compare two saved snapshot IDs without sending the
+original snapshot text back over the network:
+
+```ts
+const comparison = await tagEngine.compareSnapshots({
+  baselineId: savedBaseline.id,
+  targetId: savedTarget.id,
+  minSeverity: 2
+});
+console.log(comparison.summary, comparison.alerts);
+
+const history = await tagEngine.listComparisons({
+  volumeId: "workstation-01",
+  limit: 50
+});
+const previous = await tagEngine.getComparison(history[0].id);
+```
+
+TagEngine enforces same-volume comparisons, uses a shared time anchor when
+rebuilding vectors, and persists comparison metadata plus alert JSONL files.
+The adapter returns the service's capped alert payload (up to 2,000 records);
+use the summary counts for total change volume. Comparison endpoints require
+the same server-side bearer token as snapshot storage.
