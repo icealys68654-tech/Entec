@@ -58,3 +58,37 @@ test("validates base URL and severity before making a request", async () => {
 test("rejects an explicitly blank API token", () => {
   assert.throws(() => new TagEngineClient({ baseUrl: "http://localhost:3000", apiToken: " " }), /apiToken must be a non-empty string/);
 });
+
+
+test("creates, lists, and retrieves persisted snapshots with bearer auth", async () => {
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  const stored = {
+    id, volumeId: "volume-a", label: "Baseline", createdAt: "2026-11-21T12:00:00.000Z",
+    processedCount: 1, volumeSerial: "ABCD-1234", anchorIso: "2026-11-20T13:00:00.000Z"
+  };
+  const calls: Array<{ url: string; method: string; authorization: string }> = [];
+  const client = new TagEngineClient({
+    baseUrl: "https://tagengine.internal",
+    apiToken: "secret",
+    fetchImpl: async (input, init) => {
+      calls.push({
+        url: String(input),
+        method: String(init?.method || "GET"),
+        authorization: (init?.headers as Record<string, string>).authorization
+      });
+      if (String(input).includes("/api/snapshots?")) {
+        return new Response(JSON.stringify({ snapshots: [stored] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ snapshot: stored }), { status: String(init?.method) === "POST" ? 201 : 200 });
+    }
+  });
+  const created = await client.createSnapshot({ snapshotText: "snapshot", volumeId: "volume-a", label: "Baseline" });
+  const listed = await client.listSnapshots({ volumeId: "volume-a" });
+  const fetched = await client.getSnapshot(id);
+  assert.equal(created.id, id);
+  assert.equal(listed[0].volumeId, "volume-a");
+  assert.equal(fetched.id, id);
+  assert.equal(calls[0].method, "POST");
+  assert.ok(calls[1].url.includes("volumeId=volume-a"));
+  assert.equal(calls.every(call => call.authorization === "Bearer secret"), true);
+});

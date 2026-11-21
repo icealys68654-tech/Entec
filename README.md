@@ -76,3 +76,24 @@ The adapter supports an injected `fetch` implementation for tests, optional serv
 ## Development
 
 `npm run build` compiles TypeScript. `npm test` runs parser and TagEngine adapter contract tests. The tests mock HTTP responses and do not require a running TagEngine instance.
+
+
+## Persistent snapshot inventory
+
+TagEngine can persist parsed snapshots on its host. Entec exposes typed methods
+for the authenticated storage API:
+
+```ts
+const saved = await tagEngine.createSnapshot({
+  snapshotText,
+  volumeId: "workstation-01",
+  label: "Monday baseline"
+});
+const history = await tagEngine.listSnapshots({ volumeId: "workstation-01", limit: 50 });
+const snapshot = await tagEngine.getSnapshot(saved.id);
+```
+
+Configure TagEngine's `ENTEC_SNAPSHOT_DIR` on a durable volume and back it
+up. The current storage release retains source snapshots and vector files;
+it does not yet implement automatic retention, deletion, or historical
+snapshot-to-snapshot comparison endpoints.

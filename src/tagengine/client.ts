@@ -9,6 +9,17 @@ export interface TagEngineClientOptions {
   fetchImpl?: typeof fetch;
 }
 
+
+export interface TagEngineStoredSnapshot {
+  id: string;
+  volumeId: string;
+  label: string;
+  createdAt: string;
+  processedCount: number;
+  volumeSerial: string;
+  anchorIso: string;
+}
+
 export interface TagEngineParseMetadata {
   processedCount: number;
   volumeSerial: string;
@@ -103,6 +114,64 @@ export class TagEngineClient {
     }
     this.apiToken = options.apiToken;
     this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  private async requestJson(path: string, init: RequestInit = {}): Promise<unknown> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: {
+          "accept": "application/json",
+          ...(init.body ? { "content-type": "application/json" } : {}),
+          ...(this.apiToken ? { "authorization": "Bearer " + this.apiToken } : {}),
+          ...init.headers
+        },
+        signal: controller.signal
+      });
+      const text = await response.text();
+      if (!response.ok) {
+        throw new TagEngineHttpError(`TagEngine returned HTTP ${response.status}`, response.status, text.slice(0, 4096));
+      }
+      try { return JSON.parse(text); } catch { throw new Error("TagEngine returned invalid JSON"); }
+    } catch (error) {
+      if (error instanceof TagEngineHttpError || error instanceof Error && error.name !== "AbortError") throw error;
+      throw new Error(`TagEngine request timed out after ${this.timeoutMs}ms`);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async createSnapshot(input: { snapshotText: string; volumeId?: string; label?: string }): Promise<TagEngineStoredSnapshot> {
+    if (typeof input.snapshotText !== "string" || !input.snapshotText.trim()) throw new Error("snapshotText is required");
+    const body = JSON.stringify(input);
+    if (new TextEncoder().encode(body).byteLength > 50 * 1024 * 1024) throw new Error("TagEngine request exceeds the 50MB service limit");
+    const payload = await this.requestJson("/api/snapshots", { method: "POST", body });
+    const snapshot = (payload as { snapshot?: unknown })?.snapshot;
+    if (!snapshot || typeof snapshot !== "object" || typeof (snapshot as TagEngineStoredSnapshot).id !== "string") {
+      throw new Error("TagEngine returned invalid snapshot metadata");
+    }
+    return snapshot as TagEngineStoredSnapshot;
+  }
+
+  async listSnapshots(input: { volumeId?: string; limit?: number } = {}): Promise<TagEngineStoredSnapshot[]> {
+    const limit = input.limit ?? 100;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new Error("limit must be an integer from 1 to 500");
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (input.volumeId) query.set("volumeId", input.volumeId);
+    const payload = await this.requestJson("/api/snapshots?" + query.toString());
+    const snapshots = (payload as { snapshots?: unknown })?.snapshots;
+    if (!Array.isArray(snapshots)) throw new Error("TagEngine returned invalid snapshot list");
+    return snapshots as TagEngineStoredSnapshot[];
+  }
+
+  async getSnapshot(id: string): Promise<TagEngineStoredSnapshot> {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("snapshot id must be a UUID");
+    const payload = await this.requestJson("/api/snapshots/" + encodeURIComponent(id));
+    const snapshot = (payload as { snapshot?: unknown })?.snapshot;
+    if (!snapshot || typeof snapshot !== "object") throw new Error("TagEngine returned invalid snapshot metadata");
+    return snapshot as TagEngineStoredSnapshot;
   }
 
   async analyze(input: {
